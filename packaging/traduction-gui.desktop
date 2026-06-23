@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Traduction — Panneau de contrôle
+GenericName=Traduction & doublage IA
+Comment=Sous-titres, doublage, résumé, clips viraux — LLM local ou Claude
+Exec=traduction-gui
+Icon=traduction-gui
+Terminal=false
+Categories=AudioVideo;AudioVideoEditing;Utility;
+StartupWMClass=TraductionGUI
+Keywords=traduction;sous-titres;doublage;resume;clips;whisper;ollama;claude;

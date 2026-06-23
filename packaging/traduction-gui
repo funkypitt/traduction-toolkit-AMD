@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+# Lanceur de l'application « Panneau de contrôle Traduction ».
+# Démarre le serveur gui.py (s'il ne tourne pas déjà) puis ouvre une fenêtre
+# type application. Le serveur survit à la fermeture de la fenêtre (léger).
+set -euo pipefail
+
+DIR="${TRADUCTION_DIR:-$HOME/code/traduction}"
+PORT="${TRADUCTION_PORT:-5005}"
+URL="http://127.0.0.1:${PORT}"
+LOG="$HOME/.cache/traduction-gui.log"
+mkdir -p "$HOME/.cache"
+
+# Interpréteur : surcharge TRADUCTION_PYTHON, sinon env conda interview/traduction,
+# sinon python3 système.
+PY="${TRADUCTION_PYTHON:-}"
+if [ ! -x "$PY" ]; then
+  for e in interview traduction; do
+    [ -x "$HOME/miniconda3/envs/$e/bin/python" ] && PY="$HOME/miniconda3/envs/$e/bin/python" && break
+  done
+fi
+[ -x "$PY" ] || PY="$(command -v python3 || true)"
+
+fail(){ command -v notify-send >/dev/null 2>&1 && notify-send "Traduction GUI" "$1" || true; echo "$1" >&2; exit 1; }
+
+[ -f "$DIR/gui.py" ] || fail "gui.py introuvable dans $DIR — définis la variable TRADUCTION_DIR."
+[ -n "$PY" ]         || fail "Aucun interpréteur Python trouvé."
+
+# Démarrer le serveur s'il n'est pas déjà en écoute.
+if ! curl -sf "$URL/api/scripts" >/dev/null 2>&1; then
+  ( cd "$DIR" && nohup "$PY" gui.py >>"$LOG" 2>&1 & )
+  for _ in $(seq 1 60); do
+    curl -sf "$URL/api/scripts" >/dev/null 2>&1 && break
+    sleep 0.5
+  done
+  curl -sf "$URL/api/scripts" >/dev/null 2>&1 \
+    || fail "Le serveur n'a pas démarré. Voir $LOG (essaie: python3 doctor.py)."
+fi
+
+# Ouvrir une fenêtre dédiée (mode application) si un navigateur Chromium est là.
+PROFILE="$HOME/.cache/traduction-gui-profile"
+for B in brave-browser chromium chromium-browser google-chrome google-chrome-stable microsoft-edge; do
+  if command -v "$B" >/dev/null 2>&1; then
+    exec "$B" --app="$URL" --class=TraductionGUI --user-data-dir="$PROFILE" >/dev/null 2>&1
+  fi
+done
+exec xdg-open "$URL"

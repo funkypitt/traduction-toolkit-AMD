@@ -1,0 +1,45 @@
+# Video/audio files
+*.mp4
+*.wav
+*.mp3
+
+# Subtitle files
+*.srt
+*.ass
+
+# Saved web pages
+*.mhtml
+
+# Images (screenshots)
+*.png
+
+# Archives
+*.zip
+
+# Logs
+*.log
+
+# Répertoires structurés (input/work/output)
+input/
+work-files/
+output/
+
+# Artefacts de build (paquet .deb GUI)
+build/
+dist/
+__pycache__/
+*.deb
+
+# Secrets / identifiants — NE JAMAIS committer
+*cookies*.json
+*-cookies.json
+*credentials*
+clipper_api_setup.txt
+*api_setup*
+*.env
+.env*
+*secret*
+*password*
+*token*.txt
+# Exception : l'icône bundlée du .deb (malgré l'ignore *.png plus haut)
+!packaging/icon.png

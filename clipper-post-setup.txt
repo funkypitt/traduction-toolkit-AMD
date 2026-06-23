@@ -1,0 +1,113 @@
+Configuration de clipper.py --post
+===================================
+Guide de mise en place pour la publication automatique sur Telegram et X/Twitter.
+
+
+1. TELEGRAM
+-----------
+
+a) Créer un bot :
+   - Ouvrir Telegram, chercher @BotFather
+   - Envoyer /newbot
+   - Choisir un nom (ex: "Mon Clipper Bot")
+   - Choisir un username (ex: monclipperbot)
+   - BotFather donne un token du type : 7123456789:AAF...xyz
+   - Copier ce token
+
+b) Créer un canal ou groupe :
+   - Créer un canal Telegram (ou utiliser un existant)
+   - Aller dans les paramètres du canal → Administrateurs
+   - Ajouter le bot comme administrateur (droit "Publier des messages")
+
+c) Récupérer le chat_id :
+   - Méthode 1 : Pour un canal public @moncanal → chat_id = "@moncanal"
+   - Méthode 2 : Transférer un message du canal à @userinfobot
+   - Méthode 3 : Ouvrir https://api.telegram.org/bot<TOKEN>/getUpdates
+     après avoir envoyé un message dans le canal. Le chat_id apparaît
+     dans la réponse JSON (souvent un nombre négatif comme -1001234567890).
+
+d) Configurer les variables d'environnement :
+
+   export TELEGRAM_BOT_TOKEN="7123456789:AAF...xyz"
+   export TELEGRAM_CHAT_ID="-1001234567890"    # ou "@moncanal"
+
+   Pour rendre permanent, ajouter dans ~/.bashrc ou ~/.zshrc :
+   export TELEGRAM_BOT_TOKEN="..."
+   export TELEGRAM_CHAT_ID="..."
+
+e) Limites Telegram :
+   - Taille max vidéo : 50 Mo
+   - Caption max : 1024 caractères
+
+
+2. X / TWITTER
+--------------
+
+a) Créer un compte développeur :
+   - Aller sur https://developer.x.com
+   - Se connecter avec son compte X
+   - S'inscrire au Developer Portal (le tier gratuit suffit)
+
+b) Créer un projet et une application :
+   - Dashboard → Projects → Create Project
+   - Nommer le projet (ex: "Clipper")
+   - Créer une App dans le projet
+   - Dans App Settings → User authentication settings :
+     - Activer OAuth 1.0a
+     - Permissions : Read and Write
+     - Callback URL : https://localhost (pas utilisé mais requis)
+     - Website URL : https://example.com (idem)
+
+c) Générer les clés :
+   - Aller dans Keys and Tokens
+   - API Key and Secret → Generate (noter les deux valeurs)
+   - Access Token and Secret → Generate (noter les deux valeurs)
+   - IMPORTANT : ces tokens doivent avoir les permissions Read+Write.
+     Si vous les avez générés avant d'activer Write, régénérez-les.
+
+d) Configurer les variables d'environnement :
+
+   export TWITTER_API_KEY="aB1cD2eF3..."
+   export TWITTER_API_SECRET="gH4iJ5kL6..."
+   export TWITTER_ACCESS_TOKEN="1234567890-mN7oP8..."
+   export TWITTER_ACCESS_SECRET="qR9sT0uV1..."
+
+e) Installer les dépendances Python :
+
+   pip install tweepy requests-oauthlib --break-system-packages
+
+f) Limites X/Twitter :
+   - Vidéo max : 512 Mo, durée max : 140 secondes (tier gratuit)
+   - Tweet max : 280 caractères
+   - Tier gratuit : 1500 tweets/mois
+
+
+3. TEST
+-------
+
+# Vérifier la configuration (menu interactif sans publier)
+python clipper.py --post
+
+# Avec Telegram seul
+TELEGRAM_BOT_TOKEN=xxx TELEGRAM_CHAT_ID=yyy python clipper.py --post
+
+# Avec les deux plateformes
+TELEGRAM_BOT_TOKEN=xxx TELEGRAM_CHAT_ID=yyy \
+TWITTER_API_KEY=aaa TWITTER_API_SECRET=bbb \
+TWITTER_ACCESS_TOKEN=ccc TWITTER_ACCESS_SECRET=ddd \
+python clipper.py --post
+
+
+4. USAGE
+--------
+
+Le mode --post cherche dans le répertoire courant les paires MP4+TXT
+(générées par clipper.py lors de l'extraction). Il affiche un menu
+interactif pour choisir le clip, visualiser/modifier le texte du post,
+puis publie sur toutes les plateformes configurées.
+
+Workflow typique :
+  1. python clipper.py video.mp4 --criteria "..." --target-lang fr
+     → génère clip1.mp4 + clip1.txt, clip2.mp4 + clip2.txt, ...
+  2. python clipper.py --post
+     → menu interactif, sélection, publication
