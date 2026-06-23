@@ -128,6 +128,17 @@ chmod +x install.sh
 
 Le script `install.sh` est **interactif** et installe tout : Miniconda (si absent), l'environnement Python, PyTorch+CUDA, les paquets, ffmpeg, yt-dlp, la GUI (Flask), puis **propose** (interactif) le backend de doublage Qwen3-TTS (env conda dédié), **Ollama + les modèles locaux** (LLM gratuit), et l'**application GUI** (`.deb`, panneau de contrôle dans le menu). Lancez ensuite `python doctor.py` à tout moment pour un diagnostic complet (`--install` pour réparer).
 
+### Mise à jour
+
+Pour une mise à jour de routine, inutile de tout réinstaller. `update.sh` **affiche d'abord ce qui a changé sur GitHub** (commits + fichiers), puis applique et redémarre le daemon de l'extension si besoin :
+
+```bash
+./update.sh            # voir les nouveautés PUIS les appliquer
+./update.sh --check    # seulement voir ce qui a changé, sans rien appliquer
+```
+
+Relancez `install.sh` seulement pour la première installation, pour **ajouter** un composant (Qwen3-TTS, Ollama, app `.deb`, clés API), ou si de nouvelles dépendances Python sont requises (rare).
+
 ### Manuelle
 
 #### Prérequis système
