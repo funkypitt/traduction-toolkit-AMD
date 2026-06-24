@@ -56,6 +56,9 @@ from dataclasses import dataclass, field, asdict
 from pathlib import Path
 from typing import Optional
 
+import hw
+hw.setup_rocm_env()  # AMD/ROCm (gfx1151) : pose HSA_OVERRIDE_* avant tout import torch
+
 # Fork-par-import : tout le pipeline de base de traduire.py est réutilisé
 # tel quel. On ne duplique pas 1800 lignes — on override simplement les
 # constantes dont dépendent les fonctions internes (module globals).
@@ -178,7 +181,7 @@ def diarize_speakers_pro(audio_path: str, segments: list[Segment],
     import whisperx, torch, gc
     from whisperx.diarize import DiarizationPipeline
 
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    device = hw.device()  # « cuda » couvre CUDA et ROCm/HIP
     t0 = time.time()
 
     diarize_model = DiarizationPipeline(token=hf_token, device=device)
@@ -627,8 +630,8 @@ def fill_transcription_gaps(segments: list[Segment], audio_path: str,
     # ── Étape 3 : re-transcription WhisperX par tranche ──────────────────
     import whisperx, torch, gc, tempfile
 
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    compute_type = traduire.WHISPER_COMPUTE_TYPE if device == "cuda" else "int8"
+    device = hw.device()  # « cuda » couvre CUDA et ROCm/HIP
+    compute_type = hw.whisper_compute_type()
 
     source_langs = [x.strip() for x in source_lang.split(",")]
     is_multi = len(source_langs) > 1

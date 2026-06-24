@@ -8,8 +8,8 @@
 #   ./update.sh            # voir les nouveautés PUIS les appliquer
 #   ./update.sh --check    # voir les nouveautés SANS rien appliquer
 #
-# Relancez install.sh à la place pour : la première installation, AJOUTER un
-# composant (env Qwen3-TTS, Ollama, app .deb, clés API), ou si de NOUVELLES
+# Relancez install-amd.sh à la place pour : la première installation, AJOUTER un
+# composant (Ollama, app .deb, clés API), ou si de NOUVELLES
 # dépendances Python sont requises (rare).
 # ═══════════════════════════════════════════════════════════════════════════════
 set -euo pipefail

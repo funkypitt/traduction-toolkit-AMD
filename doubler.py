@@ -75,6 +75,9 @@ from dataclasses import dataclass, field, asdict
 from pathlib import Path
 from typing import Optional
 
+import hw
+hw.setup_rocm_env()  # AMD/ROCm (gfx1151) : pose HSA_OVERRIDE_* avant tout import torch
+
 import epochtimes
 import apollohealth
 
@@ -743,18 +746,32 @@ def acquire_gpu_lock():
     print("   🔒 Verrou GPU acquis")
 
 
+def wait_for_vram_release(min_free_mib: int = 6000, timeout: float = 60.0,
+                          poll: float = 1.5) -> bool:
+    """Délègue à hw.py (multi-fournisseur : nvidia-smi / amd-smi / rocm-smi, et
+    logique mémoire unifiée assouplie pour les APU Strix Halo)."""
+    return hw.wait_for_vram_release(min_free_mib=min_free_mib, timeout=timeout, poll=poll)
+
+
+def free_gpu_for_task(min_free_mib: int = 6000, timeout: float = 60.0):
+    """Délègue à hw.py — décharge tout modèle Ollama résident puis vérifie/attend
+    la VRAM avant un gros chargement GPU (WhisperX, TTS)."""
+    return hw.free_gpu_for_task(min_free_mib=min_free_mib, timeout=timeout)
+
+
 def transcribe_whisperx(audio_path: str, source_lang: str,
                         hf_token: Optional[str] = None) -> list[DubSegment]:
     """Transcrit avec WhisperX + alignement mot par mot."""
     acquire_gpu_lock()
+    free_gpu_for_task(min_free_mib=6000, timeout=60)  # purge un Ollama résident avant WhisperX
     import whisperx, torch
 
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    device = hw.device()  # « cuda » couvre CUDA et ROCm/HIP
     print(f"\n📝 Passe 1c — Transcription WhisperX ({WHISPER_MODEL}) [{device}]...")
 
     t0 = time.time()
     model = whisperx.load_model(WHISPER_MODEL, device,
-                                compute_type=WHISPER_COMPUTE_TYPE, language=source_lang)
+                                compute_type=hw.whisper_compute_type(), language=source_lang)
     audio = whisperx.load_audio(audio_path)
     result = model.transcribe(audio, batch_size=WHISPER_BATCH_SIZE, language=source_lang)
     print(f"   Transcription : {time.time()-t0:.1f}s")
@@ -789,7 +806,7 @@ def diarize_speakers(audio_path: str, segments: list[DubSegment],
     """Identifie qui parle quand avec pyannote via WhisperX."""
     import whisperx, torch
 
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    device = hw.device()  # « cuda » couvre CUDA et ROCm/HIP
     print(f"\n👥 Passe 2 — Diarisation des locuteurs...")
 
     if not hf_token:
@@ -6939,12 +6956,9 @@ def main():
     # modèle Ollama (ex. gemma4:31b ~20 Go) reste résident (keep_alive) et le
     # TTS provoque un CUDA OOM sur 24 Go (révélé par le test du 2026-06-23).
     if args.llm == "local":
-        try:
-            subprocess.run(["ollama", "stop", args.ollama_model],
-                           capture_output=True, timeout=30)
-            time.sleep(2)
-        except Exception:
-            pass
+        # Ollama ne libère pas la VRAM assez vite : on décharge tout modèle
+        # résident ET on VÉRIFIE qu'elle est libre avant de charger le TTS.
+        free_gpu_for_task(min_free_mib=6000, timeout=60)
     tts = create_tts_backend(ref_voice=getattr(args, 'ref_voice', None),
                              target_lang=tgt_lang,
                              source_lang=src_lang,

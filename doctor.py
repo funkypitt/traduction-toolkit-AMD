@@ -119,14 +119,33 @@ def check_system(rep):
     else:
         rep.add(FAIL, "ffmpeg", "introuvable",
                 "Installe-le : sudo apt install ffmpeg  (ou: brew install ffmpeg)")
-    # GPU
-    if shutil.which("nvidia-smi"):
-        rc, out = run(["nvidia-smi", "--query-gpu=name,memory.total",
-                       "--format=csv,noheader"])
-        rep.add(OK if rc == 0 else WARN, "GPU NVIDIA",
-                out.strip().splitlines()[0] if rc == 0 else "nvidia-smi présent")
-    else:
-        rep.add(WARN, "GPU NVIDIA", "absent — CPU only (WhisperX/TTS très lents)")
+    # GPU — multi-fournisseur via hw.py (NVIDIA/CUDA, AMD/ROCm, ou CPU)
+    try:
+        import hw
+        v = hw.vendor()
+        if v == "nvidia" and shutil.which("nvidia-smi"):
+            rc, out = run(["nvidia-smi", "--query-gpu=name,memory.total",
+                           "--format=csv,noheader"])
+            rep.add(OK if rc == 0 else WARN, "GPU NVIDIA",
+                    out.strip().splitlines()[0] if rc == 0 else "nvidia-smi présent")
+        elif v == "amd":
+            free = hw.gpu_memory_free_mib()
+            rep.add(OK if hw.has_gpu() else WARN, "GPU AMD/ROCm",
+                    f"gfx (Strix Halo) — device={hw.device()}, "
+                    f"mémoire unifiée={hw.is_unified_memory()}, "
+                    f"VRAM libre≈{free} Mio" if free is not None
+                    else f"device={hw.device()} (mémoire non lisible — voir README-AMD §8)")
+            if not hw.has_gpu():
+                rep.add(WARN, "torch ROCm",
+                        "torch ne voit pas le GPU — build ROCm ? HSA_OVERRIDE_GFX_VERSION ?",
+                        "cf. README-AMD.md §2 et install-amd.sh")
+        else:
+            rep.add(WARN, "GPU", "absent — CPU only (WhisperX/TTS très lents)")
+        # détail complet
+        for line in hw.describe().splitlines():
+            print(line)
+    except Exception as e:
+        rep.add(WARN, "GPU (hw.py)", f"détection impossible : {e}")
 
 
 def find_interview_py(rep):

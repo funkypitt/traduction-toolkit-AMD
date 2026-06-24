@@ -22,7 +22,7 @@ SERVICE="$SYSTEMD_DIR/traduction-daemon.service"
 # Interpréteur du toolkit (interview/traduction/override), comme gui.py/doctor.py
 PY="${TRADUCTION_PYTHON:-}"
 if [ ! -x "$PY" ]; then
-  for e in interview traduction; do
+  for e in traduction-amd interview traduction; do   # AMD fork : env ROCm en premier
     [ -x "$HOME/miniconda3/envs/$e/bin/python" ] && PY="$HOME/miniconda3/envs/$e/bin/python" && break
   done
 fi

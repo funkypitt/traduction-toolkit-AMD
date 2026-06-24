@@ -36,6 +36,9 @@ from dataclasses import dataclass, field, asdict
 from pathlib import Path
 from typing import Optional
 
+import hw
+hw.setup_rocm_env()  # AMD/ROCm (gfx1151) : pose HSA_OVERRIDE_* avant tout import torch
+
 import epochtimes
 import apollohealth
 
@@ -385,13 +388,13 @@ def transcribe_whisperx(audio_path: str, source_lang: Optional[str] = None,
     acquire_gpu_lock()
     import whisperx, torch, gc
 
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    device = hw.device()  # « cuda » couvre CUDA et ROCm/HIP
     lang_display = source_lang.upper() if source_lang else "auto"
     print(f"\n📝 Transcription WhisperX ({WHISPER_MODEL}) sur {device} [{lang_display}]...")
 
     t0 = time.time()
     model = whisperx.load_model(WHISPER_MODEL, device,
-                                compute_type=WHISPER_COMPUTE_TYPE,
+                                compute_type=hw.whisper_compute_type(),
                                 language=source_lang)
     audio = whisperx.load_audio(audio_path)
     result = model.transcribe(audio, batch_size=WHISPER_BATCH_SIZE,

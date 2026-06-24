@@ -48,6 +48,9 @@ from dataclasses import dataclass, field, asdict
 from pathlib import Path
 from typing import Optional
 
+import hw
+hw.setup_rocm_env()  # AMD/ROCm (gfx1151) : pose HSA_OVERRIDE_* avant tout import torch
+
 import epochtimes
 import apollohealth
 
@@ -1011,7 +1014,7 @@ def transcribe_whisperx(audio_path: str, source_lang: str = "en",
     source_langs = [x.strip() for x in source_lang.split(",")]
     is_multilingual = len(source_langs) > 1
 
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    device = hw.device()  # « cuda » couvre CUDA et ROCm/HIP
     lang_label = source_lang_label(source_lang)
     print(f"\n📝 Transcription WhisperX ({WHISPER_MODEL}) sur {device} [{lang_label}]...")
 
@@ -1024,7 +1027,7 @@ def transcribe_whisperx(audio_path: str, source_lang: str = "en",
     if vad_options:
         print(f"   ⚙️  VAD overrides: {vad_options}")
     model = whisperx.load_model(WHISPER_MODEL, device,
-                                compute_type=WHISPER_COMPUTE_TYPE,
+                                compute_type=hw.whisper_compute_type(),
                                 language=wx_lang,
                                 vad_options=vad_options or None)
     audio = whisperx.load_audio(audio_path)
@@ -1164,10 +1167,10 @@ def _fill_transcription_gaps(segments, original_audio, source_lang,
 
     source_langs = [x.strip() for x in source_lang.split(",")]
     wx_lang = None if len(source_langs) > 1 else source_langs[0]
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    device = hw.device()  # « cuda » couvre CUDA et ROCm/HIP
 
     model = whisperx.load_model(WHISPER_MODEL, device,
-                                compute_type=WHISPER_COMPUTE_TYPE,
+                                compute_type=hw.whisper_compute_type(),
                                 language=wx_lang)
     filled_segments = []
     try:

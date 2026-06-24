@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## AMD / ROCm fork
+
+This is the **AMD Ryzen AI Max+ 395 "Strix Halo" (gfx1151, ROCm)** fork of the toolkit. All hardware coupling lives in **`hw.py`** (vendor detection CUDA/ROCm/CPU; `hw.device()` returns `"cuda"` for both CUDA and ROCm since PyTorch-HIP masquerades as cuda; `hw.whisper_compute_type()`; multi-vendor GPU-memory query; unified-memory-aware VRAM logic; `hw.setup_rocm_env()`). Scripts must NOT hardcode `"cuda"`/`nvidia-smi` — call `hw.*`. Install via `install-amd.sh`; AMD specifics and the on-hardware validation checklist are in `README-AMD.md`. ROCm paths are untested on the target hardware (cautious guesswork) — assumptions flagged "⚠️ AMD".
+
 ## Project Overview
 
 Multilingual AI translation toolkit for video/audio content. Four independent Python scripts, each implementing a complete pipeline — no shared library, no build system.

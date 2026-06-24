@@ -36,6 +36,9 @@ import time
 import urllib.request
 from pathlib import Path
 
+import hw
+hw.setup_rocm_env()  # AMD/ROCm (gfx1151) : pose HSA_OVERRIDE_* avant tout import torch
+
 # ---------------------------------------------------------------------------
 # Défauts Antithèse · Bon pour la tête
 # ---------------------------------------------------------------------------
@@ -445,8 +448,8 @@ def transcribe_and_diarize(audio_path: str, num_speakers: int, hf_token: str,
     import whisperx
     import torch
 
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    compute_type = "float16" if device == "cuda" else "int8"
+    device = hw.device()  # « cuda » couvre CUDA et ROCm/HIP
+    compute_type = hw.whisper_compute_type()
 
     print(f"🎙️  Transcription avec WhisperX (device={device}, modèle={whisper_model}, batch={batch_size})...")
 

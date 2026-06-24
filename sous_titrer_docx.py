@@ -17,6 +17,9 @@ import argparse, json, math, os, re, subprocess, sys, time
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import hw
+hw.setup_rocm_env()  # AMD/ROCm (gfx1151) : pose HSA_OVERRIDE_* avant tout import torch
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # CONSTANTES (alignées sur traduire.py)
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -292,8 +295,8 @@ def transcribe_whisperx(video_path: str, cache_json: str = None) -> list[dict]:
 
     import whisperx, torch, gc
 
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    compute_type = 'float16' if device == 'cuda' else 'int8'
+    device = hw.device()  # « cuda » couvre CUDA et ROCm/HIP
+    compute_type = hw.whisper_compute_type()
     print(f"\n🎤 Transcription WhisperX ({device})...")
 
     model = whisperx.load_model(WHISPER_MODEL, device, compute_type=compute_type, language='en')

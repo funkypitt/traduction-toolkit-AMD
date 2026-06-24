@@ -32,7 +32,7 @@ def _resolve_python():
     surcharge TRADUCTION_PYTHON, sinon env conda « interview » ou « traduction »,
     sinon l'interpréteur courant."""
     cands = [os.environ.get("TRADUCTION_PYTHON")]
-    for env in ("interview", "traduction"):
+    for env in ("traduction-amd", "interview", "traduction"):  # AMD fork : env ROCm en premier
         cands.append(os.path.expanduser(f"~/miniconda3/envs/{env}/bin/python"))
     for c in cands:
         if c and os.path.exists(c):

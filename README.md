@@ -1,4 +1,13 @@
-# Toolkit de traduction et doublage IA pour vidéos
+# Toolkit de traduction et doublage IA pour vidéos — **fork AMD / ROCm**
+
+> 🟥 **Fork AMD (Ryzen AI Max+ 395 « Strix Halo », iGPU Radeon 8060S / gfx1151, ROCm).**
+> C'est le portage AMD du toolkit (à l'origine NVIDIA/CUDA). Toute la dépendance
+> matérielle est centralisée dans **`hw.py`** (détection CUDA/ROCm/CPU, `device`,
+> `compute_type`, mémoire). **Installation et spécificités AMD : voir
+> [`README-AMD.md`](README-AMD.md)** puis `./install-amd.sh` (et non `install.sh`).
+> ⚠️ Les chemins ROCm relèvent d'un portage **non testé sur le matériel cible** —
+> chaque hypothèse est marquée « ⚠️ AMD ». Le reste de ce README décrit l'usage
+> commun (identique sur NVIDIA et AMD une fois la bonne installation faite).
 
 Scripts Python indépendants pour **traduire, sous-titrer, doubler, résumer** et extraire des **clips viraux** à partir de vidéos dans n'importe quelle langue, avec WhisperX, Qwen3-TTS / XTTS v2, et un **LLM au choix** : 100 % **local** (Ollama, gratuit, par défaut) ou **Claude** (API Anthropic, via `--llm claude`).
 
@@ -6,12 +15,15 @@ Scripts Python indépendants pour **traduire, sous-titrer, doubler, résumer** e
 >
 > 🖥️ Une **interface graphique** (`gui.py`), un **paquet `.deb`** et une **extension de navigateur** (Chrome/Brave/Edge) permettent de tout piloter sans ligne de commande. Voir [Interface graphique](#interface-graphique-gui) et [Extension Chrome](#extension-chrome-panneau-navigateur).
 
-## Installation rapide (Ubuntu / Pop!_OS, GPU NVIDIA)
+## Installation rapide (Ubuntu, AMD Ryzen AI Max+ 395 / ROCm)
+
+> Pré-requis ROCm (kernel ≥ 6.16.9, override gfx1151) et détails : **[`README-AMD.md`](README-AMD.md)**.
+> Sur une machine **NVIDIA**, utilisez plutôt le dépôt amont et son `install.sh`.
 
 ```bash
 sudo apt update && sudo apt install -y git && \
-git clone https://github.com/funkypitt/traduction-toolkit.git && \
-cd traduction-toolkit && chmod +x install.sh && ./install.sh
+git clone https://github.com/funkypitt/traduction-toolkit-AMD.git && \
+cd traduction-toolkit-AMD && chmod +x install-amd.sh && ./install-amd.sh
 ```
 
 L'installeur est **interactif** : il met en place ffmpeg, Miniconda, l'environnement Python + PyTorch/CUDA et toutes les dépendances, puis **propose** (o/n) Qwen3-TTS, Ollama + modèles locaux, l'application GUI (`.deb`) et la configuration des clés API. Comptez ~35 Go de téléchargement si vous prenez les modèles locaux. Détails ci-dessous.
