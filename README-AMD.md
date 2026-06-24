@@ -12,6 +12,46 @@ mémoire **unifiée** LPDDR5X jusqu'à 128 Go).
 
 ---
 
+## 0. Démarrage rapide — premier·ère testeur·euse 🧪
+
+Tu es probablement la **première personne à lancer ce fork sur du vrai matériel AMD**
+(jusqu'ici tout est validé sur NVIDIA, jamais sur un Strix Halo). Merci ! Le plus
+utile en retour : la sortie de `python hw.py` et `python doctor.py`.
+
+**Pré-requis (À FAIRE AVANT) :** ROCm doit déjà être installé (l'installeur le
+*vérifie* mais ne l'installe pas). Noyau ≥ 6.16.9 ; gfx1151 marche officieusement
+via `HSA_OVERRIDE_GFX_VERSION=11.5.1` (posé automatiquement). Détails : §2.
+
+```bash
+# 1) Installer
+sudo apt update && sudo apt install -y git && \
+git clone https://github.com/funkypitt/traduction-toolkit-AMD.git && \
+cd traduction-toolkit-AMD && chmod +x install-amd.sh && ./install-amd.sh
+
+# 2) Vérifier la détection matérielle
+conda activate traduction-amd
+python hw.py        # attendu : « fournisseur : amd | device : cuda | gpu=True »
+python doctor.py    # diagnostic complet (dépendances + GPU)
+
+# 3) Premier essai sur un CLIP COURT
+python doubler.py video.mp4 --tts xtts          # doublage (XTTS = le plus sûr sous ROCm)
+python resumer.py video.mp4 -s en --llm local   # résumé via LLM local
+```
+
+**Si la transcription tombe sur CPU** (la fork `CTranslate2-ROCm` n'est pas en
+place — c'est la seule étape manuelle, cf. §3) : pour démarrer tout de suite,
+forcer le repli CPU —
+```bash
+export TRADUCTION_WHISPER_COMPUTE=int8     # lent mais fiable (Zen 5 16 cœurs)
+```
+
+**Si quelque chose cloche :** la §8 (*Checklist de validation matérielle*) liste
+exactement quoi vérifier, et où ajuster `hw.py` si `amd-smi`/`rocm-smi` renvoient
+un format différent sur ta version. Reporte les écarts (idéalement avec la sortie
+de `hw.py`/`doctor.py`).
+
+---
+
 ## 1. Ce qui change par rapport au toolkit NVIDIA (et pourquoi)
 
 | Sujet | NVIDIA (origine) | AMD Strix Halo (ce fork) | Raison |
