@@ -3845,7 +3845,8 @@ def _clean_for_tts(text, lang="fr", backend="xtts"):
         r'\bM\.\s': 'Monsieur ',
         r'\bMme\.\s': 'Madame ',
         r'\bMlle\.\s': 'Mademoiselle ',
-        r'\bDr\.\s': 'Docteur ',
+        r'\bDre\.?\s': 'Docteure ',   # docteure (fém.) — "Dre Patrick" (sans point) sinon prononcé "dré"
+        r'\bDr\.?\s': 'Docteur ',
         r'\bPr\.\s': 'Professeur ',
         r'\bSt\.\s': 'Saint ',
         r'\bvs\.\s': 'versus ',
@@ -5290,9 +5291,6 @@ def mix_audio_voiceover(segments: list[DubSegment], background_path: str,
 
         if seg.speaker != prev_seg.speaker:
             continue
-        original_gap_ms = (seg.start - prev_seg.end) * 1000
-        if original_gap_ms < 0:
-            continue
 
         prev_tts_end = prev_start + prev_dur
 
@@ -5305,6 +5303,12 @@ def mix_audio_voiceover(segments: list[DubSegment], background_path: str,
         # reproduite telle quelle (« début de phrase … long silence … fin »).
         # On tire le clip plus tôt → il finit plus tôt aussi, donc aucun
         # risque de chevauchement avec le clip suivant.
+        #
+        # NB : collage AVANT le garde `original_gap < 0`. Les segments WhisperX
+        # se chevauchent souvent de ~20 ms (gap négatif) ; c'est précisément sur
+        # ces longs segments sous-remplis que le silence de fin est le plus grand.
+        # Sauter le collage à cause de ce micro-chevauchement laissait la pause
+        # au milieu de la phrase (bug « longues pauses qui coupent la phrase »).
         if VO_GLUE_CONTINUATIONS and not getattr(seg, "is_sentence_start", True):
             new_start = int(prev_tts_end + GAP_BETWEEN_CLIPS_MS)
             if new_start < tts_start - 50:        # ne bouger que si ça rapproche vraiment
@@ -5314,6 +5318,12 @@ def mix_audio_voiceover(segments: list[DubSegment], background_path: str,
             continue
 
         # ── Cas général : pontage isochrone (petits gaps seulement) ──────────
+        # Le garde `gap < 0` ne s'applique qu'au pontage général (pas au collage
+        # des continuations ci-dessus) : un chevauchement source ne doit pas
+        # décaler un vrai début de phrase.
+        original_gap_ms = (seg.start - prev_seg.end) * 1000
+        if original_gap_ms < 0:
+            continue
         if original_gap_ms >= VO_MAX_BRIDGE_GAP_MS:
             continue
         current_gap = tts_start - prev_tts_end
@@ -6865,20 +6875,20 @@ def main():
             analysis = analyze_content(segments, analysis_client, src_lang, tgt_lang, args.context)
 
     # ── PASSE 4d : Cohérence globale ──────────────────────────────────────
-    if not skip_review:
+    if not skip_review and not args.skip_review:
         segments = check_dubbing_consistency(segments, analysis, claude,
                                              src_lang, tgt_lang)
         save_segments(segments, seg_json)
     else:
-        print(f"\n⏩ Passe 4d — Cohérence sautée (SRT professionnel)")
+        print(f"\n⏩ Passe 4d — Cohérence sautée")
 
     # ── PASSE 4e : Vérification glossaire ─────────────────────────────────
-    if not skip_review:
+    if not skip_review and not args.skip_review:
         segments = verify_dubbing_glossary(segments, analysis, claude,
                                            src_lang, tgt_lang)
         save_segments(segments, seg_json)
     else:
-        print(f"\n⏩ Passe 4e — Glossaire sauté (SRT professionnel)")
+        print(f"\n⏩ Passe 4e — Glossaire sauté")
 
     # ── Résolution du preset voice-over (nécessaire avant l'isochronie) ──────
     # En mode --audio-only : pas de mixage avec la piste originale, donc pas de
@@ -6934,7 +6944,10 @@ def main():
     else:
         print(f"\n⏩ Adaptation isochronique sautée")
         for seg in segments:
-            seg.text_adapted = seg.text_tgt
+            # Préserver une adaptation déjà chargée (reprise via --segments) ;
+            # ne retomber sur text_tgt que si aucune adaptation n'existe.
+            if not seg.text_adapted:
+                seg.text_adapted = seg.text_tgt
 
     # ── BENCHMARK MODE ──────────────────────────────────────────────────────
     if args.benchmark:
