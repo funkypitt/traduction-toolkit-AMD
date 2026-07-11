@@ -45,3 +45,12 @@ clipper_api_setup.txt
 !packaging/icon.png
 # Exception : l'icône de l'extension Chrome
 !chrome-extension/extension/icon.png
+
+# Cache modèles ClearerVoice (mossformer_bridge.py, cwd épinglé au dépôt)
+checkpoints/
+
+# Artefacts de test nettoyer.py
+essais-nettoyage/
+
+# Dépôt git imbriqué (son propre historique)
+satipanya-podcast/

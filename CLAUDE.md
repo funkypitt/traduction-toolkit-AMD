@@ -14,6 +14,7 @@ Multilingual AI translation toolkit for video/audio content. Four independent Py
 - **`doubler-mp3-batch.py`** — Batch audio dubbing to MP3 (7 passes: WhisperX → Pyannote → Demucs → Claude translation → TTS synthesis → normalization → assembly). No timing constraints, output can be longer than source. TTS backends: Qwen3-TTS (default), XTTS v2.
 - **`doubler.py`** — Video dubbing with voice-over mixing (11 passes: adds isochronic adaptation, two-pass TTS with speed adjustment, voice-over mixing with ducking). TTS backends: Qwen3-TTS (default), XTTS v2, ElevenLabs.
 - **`clipper.py`** — Viral clip extraction (6 passes: WhisperX → Claude clip selection → optional Claude translation → ffmpeg cut → ASS karaoke subtitles → ffmpeg burn). Selects best passages via `--criteria`, outputs Instagram-style karaoke subtitles (word-by-word groups on black background).
+- **`nettoyer.py`** — Light-touch audio restoration for dhamma talks (7 passes: analysis/hum detection → 48 kHz conditioning + 60 Hz high-pass → denoise → optional gentle leveling → linear BS.1770 loudness normalization (no limiter unless bell peaks force it) → MP3 LAME V0 → DNSMOS before/after QC + JSON report). Denoise engines via `--moteur`: `auto` (default — DeepFilterNet3 first, DNSMOS-arbitrated fallback to MossFormer2 when a voice reacts badly to DFN), `dfn`, `mossformer2` (ClearerVoice in dedicated `clearvoice` conda env via `mossformer_bridge.py`; caveat: compresses dynamics ~8 dB), `afftdn` (gentlest, modest cleaning). Hybrid iZotope RX workflow via `--exporter-rx` / `--importer-rx`. Best engine is per-recording — trust ears over metrics.
 
 ## Running the Scripts
 
@@ -34,6 +35,12 @@ python doubler.py video.mp4 --no-voiceover  # pure dubbing
 python doubler.py video.mp4 --tts qwen3tts  # Qwen3-TTS (FR excellent)
 python doubler.py video.mp4 --tts xtts     # XTTS v2 fallback
 python doubler-mp3-batch.py --model xtts                 # XTTS v2 fallback
+
+# Audio restoration (dhamma talks — batch or single file)
+python nettoyer.py causerie.mp3                  # denoise + normalize → causerie_nettoye.mp3
+python nettoyer.py dossier/ -o propre/           # batch
+python nettoyer.py causerie.mp3 --reduction 10   # lighter denoise (more room tone kept)
+python nettoyer.py causerie.mp3 --exporter-rx    # hybrid iZotope RX workflow
 
 # Viral clip extraction
 python clipper.py video.mp4 --criteria "passage le plus marquant"
