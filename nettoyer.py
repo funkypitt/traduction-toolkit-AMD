@@ -81,9 +81,15 @@ Usage :
   python nettoyer.py dossier/ -o propre/             # dossier de sortie
   python nettoyer.py causerie.mp3 --cpu              # sans GPU
 
-Prérequis (env conda `interview`) :
+Prérequis (env conda `traduction-amd`) :
   pip install deepfilternet pyloudnorm speechmos
   # + ffmpeg installé (loudnorm/ebur128/dynaudnorm/alimiter)
+
+⚠️ AMD : non testé sur ROCm. DeepFilterNet est du torch pur → devrait
+fonctionner via PyTorch-HIP (qui se présente comme "cuda") ; DNSMOS
+(speechmos/onnxruntime) tourne sur CPU ; le moteur mossformer2
+(env `clearvoice`, torch CUDA) est incertain sur ROCm — en cas de souci,
+--moteur dfn ou afftdn, et --cpu reste toujours disponible.
 """
 
 import argparse
