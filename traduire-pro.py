@@ -31,7 +31,7 @@ Usage :
   python traduire-pro.py video.mp4 -s en -t fr
   python traduire-pro.py video.mp4 --no-dubbing --no-audit-cuts
   python traduire-pro.py video.mp4 --resume video_pro_work/segments_finaux.json
-  python traduire-pro.py video.mp4 --claude-model claude-opus-4-1-20250805
+  python traduire-pro.py video.mp4 --claude-model claude-opus-4-8
 
 Points clés :
   - Modèle par défaut : Claude Opus 4.5 (qualité maximale, ~5x coût Sonnet)
@@ -102,8 +102,8 @@ WORDS_PER_PAGE = 350
 PAGES_PER_MINUTE = 0.3
 
 # Estimation coût Opus 4.5 (indicatif, pour affichage début passe 3)
-OPUS_COST_INPUT_PER_1M = 15.0   # $/1M input tokens (Opus)
-OPUS_COST_OUTPUT_PER_1M = 75.0  # $/1M output tokens (Opus)
+OPUS_COST_INPUT_PER_1M = 5.0    # $/1M input tokens (Opus 4.5 and later)
+OPUS_COST_OUTPUT_PER_1M = 25.0  # $/1M output tokens (Opus 4.5 and later)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1874,7 +1874,7 @@ def main():
               python traduire-pro.py video.mp4 --context "Interview de Trita Parsi (Quincy Institute)"
               python traduire-pro.py talk.mp4 -s en -t fr --no-audit-cuts
               python traduire-pro.py video.mp4 --resume video_pro_work/segments_finaux.json
-              python traduire-pro.py video.mp4 --claude-model claude-opus-4-1-20250805
+              python traduire-pro.py video.mp4 --claude-model claude-opus-4-8
         """))
 
     p.add_argument("source", help="Fichier MP4 source ou URL YouTube")
