@@ -170,6 +170,11 @@ VO_TTS_TARGET_DBFS = -16            # niveau cible de la voix doublée (premier 
 VO_ORIG_BETWEEN_DB = -2             # légère atténuation de la voix originale entre segments
 VO_MAX_BRIDGE_GAP_MS = 800          # gap original max pour considérer une phrase continue
 VO_MAX_DRIFT_MS = 1500              # dérive max tolérée pour le push-later cascade (anti-troncature)
+VO_MAX_AHEAD_MS = 3000              # un clip collé ne prend jamais plus d'avance que ça sur le début
+                                    # original de son segment : sans ce plafond, une longue énumération
+                                    # (une seule phrase sur quatorze segments) collée bout à bout prenait
+                                    # une minute d'avance (clips plus courts que l'original + collage sans
+                                    # borne), puis l'original seul se faisait entendre une minute (2026-10-08)
 VO_GLUE_CONTINUATIONS = True        # coller les continuations de phrase (même locuteur, segment
                                     # précédent sans ponctuation finale) juste après la 1re moitié,
                                     # même si le silence original > VO_MAX_BRIDGE_GAP_MS et en
@@ -1387,10 +1392,15 @@ Réponds UNIQUEMENT en JSON, sans markdown."""
     return data
 
 
-def translate_for_dubbing(segments, analysis, client, src_lang, tgt_lang, context=""):
+def translate_for_dubbing(segments, analysis, client, src_lang, tgt_lang, context="",
+                          sauvegarde=None):
     """
     Traduction optimisée pour le doublage (style oral, concision).
     Contrairement au sous-titrage, on privilégie le naturel parlé.
+
+    sauvegarde(segments) est appelée après chaque bloc traduit : une heure
+    d'entretien, c'est une demi-heure de traduction locale, à ne pas perdre
+    en entier si le processus est tué en route.
     """
     print(f"\n🌍 Passe 4b — Traduction pour doublage {src_lang}→{tgt_lang}...")
 
@@ -1502,6 +1512,8 @@ original si chant/prière). Pas de commentaire, pas de préfixe."""
             _retry_missing(segments, s, e, system, client, src_lang, tgt_lang)
 
         print(f"   ✅ {sum(1 for seg in segments[s:e] if seg.text_tgt)}/{e-s}")
+        if sauvegarde:
+            sauvegarde(segments)
 
     total = sum(1 for s in segments if s.text_tgt)
     print(f"\n   🌍 Traduit : {total}/{len(segments)}")
@@ -5285,6 +5297,7 @@ def mix_audio_voiceover(segments: list[DubSegment], background_path: str,
 
     bridged = 0
     glued = 0
+    capped = 0
     for i in range(1, len(active_tts)):
         seg, tts_start, tts_dur = active_tts[i]
         prev_seg, prev_start, prev_dur = active_tts[i - 1]
@@ -5311,6 +5324,12 @@ def mix_audio_voiceover(segments: list[DubSegment], background_path: str,
         # au milieu de la phrase (bug « longues pauses qui coupent la phrase »).
         if VO_GLUE_CONTINUATIONS and not getattr(seg, "is_sentence_start", True):
             new_start = int(prev_tts_end + GAP_BETWEEN_CLIPS_MS)
+            # … mais jamais plus de VO_MAX_AHEAD_MS avant le début original du
+            # segment : l'avance ne s'accumule pas de clause en clause.
+            floor = int(seg.start * 1000) - VO_MAX_AHEAD_MS
+            if new_start < floor:
+                new_start = floor
+                capped += 1
             if new_start < tts_start - 50:        # ne bouger que si ça rapproche vraiment
                 seg._tts_place_ms = new_start
                 active_tts[i] = [seg, new_start, tts_dur]
@@ -5345,6 +5364,8 @@ def mix_audio_voiceover(segments: list[DubSegment], background_path: str,
             parts.append(f"{glued} continuation(s) collée(s)")
         if bridged:
             parts.append(f"{bridged} segment(s) rapproché(s)")
+        if capped:
+            parts.append(f"{capped} retenu(s) à {VO_MAX_AHEAD_MS / 1000:.0f} s d'avance au plus")
         print(f"   🔗 {', '.join(parts)} (continuité intra-phrase)")
 
     # Anti-troncature : décaler les clips qui débordent au lieu de tronquer.
@@ -5915,8 +5936,12 @@ def save_segments(segs: list[DubSegment], path: str):
         if s.words:
             d["words"] = s.words
         data.append(d)
-    with open(path, "w", encoding="utf-8") as f:
+    # Écrit à côté puis mis en place d'un coup : un arrêt brutal en pleine
+    # écriture ne laisse pas un segments.json tronqué (transcription perdue).
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
+    os.replace(tmp, path)
     print(f"   💾 → {path}")
 
 
@@ -6851,13 +6876,25 @@ def main():
             args.context = (apollo_ctx + "\n\n" + args.context).strip() if args.context else apollo_ctx
 
     # ── PASSE 4 : Analyse + Traduction ──────────────────────────────────────
-    if not any(s.text_tgt for s in segments):
-        analysis = analyze_content(segments, analysis_client, src_lang, tgt_lang, args.context)
-        with open(ana_json, "w", encoding="utf-8") as f:
-            json.dump(analysis, f, ensure_ascii=False, indent=2)
+    # Témoin posé pendant la passe 4. S'il est encore là au lancement, elle a
+    # été interrompue : segments.json n'est traduit qu'en partie, la traduction
+    # reprend au premier bloc manquant, avec l'analyse déjà faite.
+    en_cours = os.path.join(work_dir, "traduction_en_cours")
+    interrompue = os.path.exists(en_cours)
+    if interrompue or not any(s.text_tgt for s in segments):
+        if interrompue and os.path.exists(ana_json):
+            print(f"\n🔄 Traduction interrompue — reprise "
+                  f"({sum(1 for s in segments if s.text_tgt)}/{len(segments)} déjà traduits)")
+            with open(ana_json) as f: analysis = json.load(f)
+        else:
+            analysis = analyze_content(segments, analysis_client, src_lang, tgt_lang, args.context)
+            with open(ana_json, "w", encoding="utf-8") as f:
+                json.dump(analysis, f, ensure_ascii=False, indent=2)
+        open(en_cours, "w").close()
 
         segments = translate_for_dubbing(segments, analysis, claude,
-                                         src_lang, tgt_lang, args.context)
+                                         src_lang, tgt_lang, args.context,
+                                         sauvegarde=lambda segs: save_segments(segs, seg_json))
         save_segments(segments, seg_json)
 
         # ── PASSE 4c : Relecture ────────────────────────────────────────────
@@ -6867,6 +6904,7 @@ def main():
             save_segments(segments, seg_json)
         else:
             print(f"\n⏩ Relecture sautée")
+        os.remove(en_cours)
     else:
         print(f"\n⏩ Traduction déjà présente — passe 4 sautée")
         if os.path.exists(ana_json):
