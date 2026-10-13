@@ -169,7 +169,11 @@ VO_FADE_MS = 250                    # fondus entrée/sortie (lents = plus doux, 
 VO_TTS_TARGET_DBFS = -16            # niveau cible de la voix doublée (premier plan)
 VO_ORIG_BETWEEN_DB = -2             # légère atténuation de la voix originale entre segments
 VO_MAX_BRIDGE_GAP_MS = 800          # gap original max pour considérer une phrase continue
-VO_MAX_DRIFT_MS = 1500              # dérive max tolérée pour le push-later cascade (anti-troncature)
+VO_MAX_DRIFT_MS = 1500              # retard au-delà duquel le push-later le SIGNALE. Le clip est décalé
+                                    # quand même : jusqu'au 2026-10-13 un retard > plafond laissait le clip
+                                    # à sa place, et deux voix françaises se superposaient (entretien télé, clip 3
+                                    # sur clip 2 pendant 1,5 s). Un retard s'éponge à la pause suivante ;
+                                    # une superposition ne s'entend jamais autrement que comme un défaut.
 VO_MAX_AHEAD_MS = 3000              # un clip collé ne prend jamais plus d'avance que ça sur le début
                                     # original de son segment : sans ce plafond, une longue énumération
                                     # (une seule phrase sur quatorze segments) collée bout à bout prenait
@@ -1054,6 +1058,14 @@ def separate_sources(audio_hq_path: str, work_dir: str) -> tuple[str, str]:
     # Résultats finaux
     final_vocals = os.path.join(out_dir, "vocals.wav")
     final_no_vocals = os.path.join(out_dir, "no_vocals.wav")
+    # Un fichier court (traitement direct) laisse ses pistes dans htdemucs/ :
+    # sans ce second regard, chaque reprise (--segments) refaisait Demucs sur
+    # le GPU, hors verrou — et plantait si un LLM local l'occupait (2026-10-13).
+    if not os.path.exists(final_vocals):
+        sub_vocals = os.path.join(out_dir, "htdemucs", "vocals.wav")
+        sub_no_vocals = os.path.join(out_dir, "htdemucs", "no_vocals.wav")
+        if os.path.exists(sub_vocals) and os.path.exists(sub_no_vocals):
+            final_vocals, final_no_vocals = sub_vocals, sub_no_vocals
 
     # Sauter si déjà traité
     if (os.path.exists(final_vocals) and os.path.getsize(final_vocals) > 1000
@@ -1911,9 +1923,15 @@ def adapt_isochrony(segments: list[DubSegment], client,
 
     # Identifier les segments problématiques (>15% de déviation)
     to_adapt = []
+    deja = 0
     for seg in segments:
         if not seg.text_tgt or seg.duration < 0.5:
             seg.text_adapted = seg.text_tgt
+            continue
+        # Reprise (--segments) : une adaptation déjà faite est gardée telle
+        # quelle, c'est elle que les clips TTS réutilisés ont lue.
+        if seg.text_adapted:
+            deja += 1
             continue
 
         # Durée effective = durée originale - lead-in (la voix doublée commence après)
@@ -1928,6 +1946,8 @@ def adapt_isochrony(segments: list[DubSegment], client,
         else:
             seg.text_adapted = seg.text_tgt  # OK, pas besoin d'adapter
 
+    if deja:
+        print(f"   ⏩ {deja} segment(s) déjà adapté(s) (reprise) — gardés")
     if not to_adapt:
         print(f"   ✅ Toutes les traductions sont dans la plage temporelle")
         return segments
@@ -4190,8 +4210,14 @@ def verify_and_fix_timing(segments: list, tts, client,
       2. Round 2+ : réécriture Claude (cible ~95% longueur) + re-synthèse two-pass
       3. Round final agressif : réécriture drastique (cible 70% longueur)
          + re-synthèse à speed rescue max
-      4. Troncature de secours : les clips encore trop longs sont tronqués
-         pour garantir zéro chevauchement dans le mix final.
+      4. Les clips encore trop longs sont laissés au mixage (push-later),
+         qui décale les clips suivants : jamais de troncature, jamais de
+         superposition.
+
+    Chaque round se juge sur une mesure (_detect_overlaps), jamais sur le
+    fait qu'une synthèse a « réussi » : Qwen3-TTS échantillonne, un nouveau
+    tirage accéléré peut sortir plus long que l'ancien (entretien télé, 2026-10-13 :
+    10,59 s → 11,63 s à speed 1,05, compté « corrigé », puis superposition).
 
     lead_in_sec : offset voice-over (les clips sont placés à seg.start + lead_in
     dans le mix final, donc la fenêtre réelle est réduite d'autant).
@@ -4259,16 +4285,39 @@ def verify_and_fix_timing(segments: list, tts, client,
         rescue_max = getattr(tts, 'speed_rescue_max', XTTS_SPEED_RESCUE_MAX)
         if needed_speed <= rescue_max:
             # ── Résolvable par speed seul ────────────────────────────
+            # Synthèse dans un fichier à côté : le tirage accéléré n'est
+            # gardé que s'il est plus court que le clip actuel, et il
+            # faut qu'il TIENNE dans la fenêtre pour compter comme corrigé
+            # (jusqu'à TTS_BEST_OF_N tirages, Qwen3-TTS varie de ~30 %).
             clamped = min(needed_speed, rescue_max)
-            result = tts.synthesize_with_speed(text, seg.speaker,
-                                               seg.tts_path, speed=clamped)
-            if result:
-                new_dur = _get_clip_duration(result)
+            essai_path = os.path.splitext(seg.tts_path)[0] + ".speed6c.wav"
+            best_dur = tts_dur
+            durees = []
+            for _essai in range(max(1, TTS_BEST_OF_N)):
+                result = tts.synthesize_with_speed(text, seg.speaker,
+                                                   essai_path, speed=clamped)
+                if not result or not os.path.exists(result):
+                    break
+                d = _get_clip_duration(result)
+                durees.append(d)
+                if 0.1 <= d < best_dur:
+                    shutil.move(result, seg.tts_path)
+                    best_dur = d
+                elif os.path.exists(result):
+                    os.remove(result)
+                if best_dur <= available:
+                    break
+            tirages = ", ".join(f"{d:.2f}" for d in durees) or "aucun tirage"
+            if best_dur <= available:
                 print(f"      🏃 seg {seg.index}: speed={clamped:.2f} → "
-                      f"{tts_dur:.2f}s→{new_dur:.2f}s (fenêtre {available:.2f}s)")
+                      f"{tts_dur:.2f}s→{best_dur:.2f}s (fenêtre {available:.2f}s ; "
+                      f"tirages {tirages}s)")
                 speed_fixed += 1
             else:
-                speed_failed.append((seg, tts_dur, overflow_ms, next_start))
+                print(f"      ↩️  seg {seg.index}: speed={clamped:.2f} → "
+                      f"{tts_dur:.2f}s→{best_dur:.2f}s, toujours > fenêtre "
+                      f"{available:.2f}s (tirages {tirages}s) → réécriture")
+                speed_failed.append((seg, best_dur, overflow_ms, next_start))
         else:
             # Speed insuffisant → on collecte pour le round Claude
             speed_failed.append((seg, tts_dur, overflow_ms, next_start))
@@ -4277,13 +4326,14 @@ def verify_and_fix_timing(segments: list, tts, client,
           f"{len(speed_failed)} nécessitent réécriture")
 
     if not speed_failed:
-        # Vérification finale
+        # Vérification MESURÉE : ce qui déborde encore part en réécriture,
+        # rien n'est « toléré » ici (ça finissait en superposition au mix).
         remaining = _detect_overlaps()
-        if remaining:
-            print(f"   ⚠️  {len(remaining)} chevauchements résiduels (tolérés)")
-        else:
+        if not remaining:
             print(f"   ✅ Tous les chevauchements résolus par speed")
-        return segments
+            return segments
+        print(f"   ⚠️  {len(remaining)} chevauchement(s) encore là après speed "
+              f"→ réécriture Claude")
 
     # ══════════════════════════════════════════════════════════════════════
     # ROUND 2+ : RÉÉCRITURE CLAUDE + RE-SYNTHÈSE TWO-PASS
@@ -4840,7 +4890,7 @@ def _resolve_overlaps_push_later(segments: list) -> int:
 
     pushed = 0
     max_drift = 0
-    skipped = 0
+    tardifs = []
     for i in range(1, len(active)):
         seg, tts_start, tts_dur = active[i]
         _, prev_start, prev_dur = active[i - 1]
@@ -4850,9 +4900,10 @@ def _resolve_overlaps_push_later(segments: list) -> int:
             continue
         natural_start = int(seg.start * 1000)
         drift = required_start - natural_start
+        # Le clip est TOUJOURS décalé : deux voix doublées ne se superposent
+        # jamais. Au-delà de VO_MAX_DRIFT_MS on le signale seulement.
         if drift > VO_MAX_DRIFT_MS:
-            skipped += 1
-            continue
+            tardifs.append((seg.index, drift))
         seg._tts_place_ms = required_start
         active[i] = [seg, required_start, tts_dur]
         max_drift = max(max_drift, drift)
@@ -4860,10 +4911,14 @@ def _resolve_overlaps_push_later(segments: list) -> int:
 
     if pushed:
         print(f"   ➡️  {pushed} clips décalés en aval "
-              f"(anti-troncature, dérive max {max_drift}ms)")
-    if skipped:
-        print(f"   ⚠️  {skipped} clips toujours en chevauchement "
-              f"(dérive > {VO_MAX_DRIFT_MS}ms — overlap toléré)")
+              f"(anti-troncature, retard max {max_drift}ms)")
+    if tardifs:
+        detail = ", ".join(f"seg {i} +{d}ms" for i, d in tardifs[:5])
+        if len(tardifs) > 5:
+            detail += f", … ({len(tardifs)} en tout)"
+        print(f"   ⚠️  {len(tardifs)} clip(s) en retard de plus de "
+              f"{VO_MAX_DRIFT_MS}ms sur l'original ({detail}) — décalés quand même, "
+              f"aucune superposition")
     return pushed
 
 
