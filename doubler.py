@@ -826,6 +826,10 @@ def diarize_speakers(audio_path: str, segments: list[DubSegment],
         return segments
 
     t0 = time.time()
+    # En reprise (--segments) la transcription est sautée, et sa purge avec :
+    # le LLM local laissé résident par le script précédent fait OOM pyannote.
+    acquire_gpu_lock()
+    free_gpu_for_task(min_free_mib=6000, timeout=60)
     from whisperx.diarize import DiarizationPipeline
     diarize_model = DiarizationPipeline(
         token=hf_token, device=device
@@ -6804,6 +6808,10 @@ def main():
 
     # ── PASSE 1b + 3 : Audio HQ + Demucs ────────────────────────────────────
     extract_audio_hq(args.video, audio_hq, skip_seconds)
+    # Première étape GPU quand --segments saute la transcription : sans purge,
+    # le séparateur partage la carte avec un modèle Ollama encore résident.
+    acquire_gpu_lock()
+    free_gpu_for_task(min_free_mib=6000, timeout=60)
     vocals_path, bg_path = separate_sources(audio_hq, work_dir)
 
     if args.remove_music:

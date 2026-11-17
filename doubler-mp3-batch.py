@@ -571,6 +571,10 @@ def diarize_speakers(audio_path: str, segments: list[Segment],
         return segments
 
     t0 = time.time()
+    # En reprise la transcription est sautée, et sa purge avec : un modèle
+    # Ollama encore résident fait OOM pyannote.
+    acquire_gpu_lock()
+    free_gpu_for_task(min_free_mib=6000, timeout=60)
     from whisperx.diarize import DiarizationPipeline
     diarize_model = DiarizationPipeline(token=hf_token, device=device)
 
