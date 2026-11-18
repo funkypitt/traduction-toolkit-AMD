@@ -61,12 +61,25 @@ try:
 except ImportError:
     apollohealth = None
 
-# yt-dlp binary: env var wins, otherwise PATH, otherwise miniconda fallback.
-YTDLP_BIN = (
-    os.environ.get("TRADUCTION_YTDLP")
-    or shutil.which("yt-dlp")
-    or str(Path.home() / "miniconda3" / "bin" / "yt-dlp")
-)
+# yt-dlp: TRADUCTION_YTDLP pins a copy; otherwise the toolkit's own, which ytdlp_auto.py
+# (in the scripts directory) fetches once and keeps up to date, at most once a day before a
+# download. Without that module: PATH, then the miniconda copy.
+try:
+    from ytdlp_auto import ytdlp as _ytdlp_auto
+except ImportError:
+    _ytdlp_auto = None
+
+
+def ytdlp_bin() -> str:
+    pinned = os.environ.get("TRADUCTION_YTDLP")
+    if pinned:
+        return pinned
+    if _ytdlp_auto is not None:
+        try:
+            return _ytdlp_auto()
+        except Exception as exc:
+            print(f"[traduction-daemon] ytdlp_auto: {exc}", file=sys.stderr)
+    return shutil.which("yt-dlp") or str(Path.home() / "miniconda3" / "bin" / "yt-dlp")
 
 PYTHON_BIN = os.environ.get("TRADUCTION_PYTHON") or sys.executable
 
@@ -279,11 +292,12 @@ def run_job(job: Job) -> None:
 
         # ── 1b. Autres URLs : yt-dlp ───────────────────────────────────────
         else:
-            if not Path(YTDLP_BIN).exists() and not shutil.which(YTDLP_BIN):
-                raise RuntimeError(f"yt-dlp binary not found: {YTDLP_BIN}")
+            ytdlp_exe = ytdlp_bin()
+            if not Path(ytdlp_exe).exists() and not shutil.which(ytdlp_exe):
+                raise RuntimeError(f"yt-dlp binary not found: {ytdlp_exe}")
 
             ytdlp_cmd = [
-                YTDLP_BIN,
+                ytdlp_exe,
                 "--no-playlist",
                 "--newline",
                 "--restrict-filenames",
@@ -498,7 +512,7 @@ class Handler(BaseHTTPRequestHandler):
                     "ok": True,
                     "traduction_dir": str(TRADUCTION_DIR),
                     "scripts_dir": str(SCRIPTS_DIR),
-                    "ytdlp": YTDLP_BIN,
+                    "ytdlp": os.environ.get("TRADUCTION_YTDLP") or "ytdlp_auto (own copy, kept up to date)",
                     "python": PYTHON_BIN,
                 })
             if path == "/scripts":
@@ -561,7 +575,7 @@ def main() -> int:
     print(f"[traduction-daemon] listening on http://{HOST}:{PORT}")
     print(f"[traduction-daemon] traduction dir: {TRADUCTION_DIR}")
     print(f"[traduction-daemon] scripts dir:    {SCRIPTS_DIR}")
-    print(f"[traduction-daemon] yt-dlp:         {YTDLP_BIN}")
+    print(f"[traduction-daemon] yt-dlp:         {os.environ.get('TRADUCTION_YTDLP') or 'own copy, kept up to date (ytdlp_auto.py)'}")
     print(f"[traduction-daemon] python:         {PYTHON_BIN}")
     print(f"[traduction-daemon] gpu slots:      {GPU_CONCURRENCY}")
     try:
