@@ -63,6 +63,7 @@ hw.setup_rocm_env()  # AMD/ROCm (gfx1151) : pose HSA_OVERRIDE_* avant tout impor
 # tel quel. On ne duplique pas 1800 lignes — on override simplement les
 # constantes dont dépendent les fonctions internes (module globals).
 import traduire
+import claude_code
 from traduire import (
     Segment, Subtitle, ContentAnalysis,
     _claude_create, _OllamaClient, lang_name, source_lang_description, source_lang_label,
@@ -1909,8 +1910,13 @@ def main():
     p.add_argument("--whisper-model", default=traduire.WHISPER_MODEL)
     p.add_argument("--claude-model", default=CLAUDE_MODEL_PRO,
                    help=f"Modèle Claude (défaut : {CLAUDE_MODEL_PRO})")
-    p.add_argument("--llm", choices=["claude", "local"], default="local",
-                   help="Backend LLM : local (Ollama, défaut) ou claude (API Anthropic)")
+    p.add_argument("--llm", choices=["claude", "claude-code", "local"],
+                   default=claude_code.default_llm("local"),
+                   help="Backend LLM : local (Ollama, défaut), claude (API Anthropic) ou "
+                        "claude-code (`claude -p`, abonnement Claude, sans clé API). "
+                        "Défaut modifiable par la variable TRADUCTION_LLM")
+    p.add_argument("--cc-model", default=claude_code.DEFAULT_MODEL,
+                   help="Modèle pour --llm claude-code (alias ou ID, défaut: opus)")
     p.add_argument("--ollama-model", default=traduire.OLLAMA_MODEL,
                    help=f"Modèle Ollama (défaut : {traduire.OLLAMA_MODEL})")
     p.add_argument("--ollama-url", default=traduire.OLLAMA_URL,
@@ -1982,6 +1988,9 @@ def main():
     if args.llm == "local":
         client = _OllamaClient(args.ollama_url, args.ollama_model)
         print(f"   🧠 LLM local : Ollama {args.ollama_model}")
+    elif args.llm == "claude-code":
+        client = claude_code.ClaudeCodeClient(model=args.cc_model)
+        print(f"   🧠 LLM : Claude Code ({args.cc_model}, abonnement)")
     else:
         api_key = os.environ.get("ANTHROPIC_API_KEY")
         if not api_key:

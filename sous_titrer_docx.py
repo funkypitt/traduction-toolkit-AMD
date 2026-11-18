@@ -17,6 +17,8 @@ import argparse, json, math, os, re, subprocess, sys, time
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import claude_code
+
 import hw
 hw.setup_rocm_env()  # AMD/ROCm (gfx1151) : pose HSA_OVERRIDE_* avant tout import torch
 
@@ -31,7 +33,8 @@ WHISPER_MODEL = "large-v3"
 OLLAMA_URL = "http://localhost:11434"
 OLLAMA_MODEL = "qwen3.6:27b"
 OLLAMA_NUM_PREDICT = 16384
-# Backend LLM choisi en CLI (renseigné par main()) : ("claude") ou ("local", model, url)
+# Backend LLM choisi en CLI (renseigné par main()) : ("claude"), ("local", model, url)
+# ou ("claude-code", model)
 LLM_BACKEND = ("claude",)
 
 
@@ -75,6 +78,9 @@ def _make_llm_client():
         _, model, url = LLM_BACKEND
         print(f"   🧠 LLM local : Ollama {model}")
         return _OllamaClient(url, model)
+    if LLM_BACKEND[0] == "claude-code":
+        print(f"   🧠 LLM : Claude Code ({LLM_BACKEND[1]}, abonnement)")
+        return claude_code.ClaudeCodeClient(model=LLM_BACKEND[1])
     from anthropic import Anthropic
     return Anthropic()
 
@@ -1075,8 +1081,13 @@ def main():
     parser.add_argument("--resume", help="Reprendre depuis un JSON de segments alignés")
     parser.add_argument("--whisperx-json", help="JSON WhisperX pré-calculé")
     parser.add_argument("--srt-only", action="store_true", help="Générer le SRT sans graver")
-    parser.add_argument("--llm", choices=["claude", "local"], default="local",
-                        help="Backend LLM : local (Ollama, défaut) ou claude (API Anthropic)")
+    parser.add_argument("--llm", choices=["claude", "claude-code", "local"],
+                        default=claude_code.default_llm("local"),
+                        help="Backend LLM : local (Ollama, défaut), claude (API Anthropic) ou "
+                             "claude-code (`claude -p`, abonnement Claude, sans clé API). "
+                             "Défaut modifiable par la variable TRADUCTION_LLM")
+    parser.add_argument("--cc-model", default=claude_code.DEFAULT_MODEL,
+                        help="Modèle pour --llm claude-code (alias ou ID, défaut: opus)")
     parser.add_argument("--ollama-model", default=OLLAMA_MODEL,
                         help=f"Modèle Ollama (défaut: {OLLAMA_MODEL})")
     parser.add_argument("--ollama-url", default=OLLAMA_URL,
@@ -1086,6 +1097,8 @@ def main():
     global LLM_BACKEND
     if args.llm == "local":
         LLM_BACKEND = ("local", args.ollama_model, args.ollama_url)
+    elif args.llm == "claude-code":
+        LLM_BACKEND = ("claude-code", args.cc_model)
 
     video = args.video
     base = os.path.splitext(video)[0]

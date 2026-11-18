@@ -235,7 +235,8 @@ def check_api_keys(rep):
         rep.add(OK, "ANTHROPIC_API_KEY", "définie")
     else:
         rep.add(WARN, "ANTHROPIC_API_KEY", "absente",
-                "Requise pour --llm claude. Inutile en 100% local. export ANTHROPIC_API_KEY=sk-…")
+                "Requise pour --llm claude. Inutile en 100% local et avec --llm claude-code "
+                "(abonnement Claude). export ANTHROPIC_API_KEY=sk-…")
     if os.environ.get("HF_TOKEN"):
         rep.add(OK, "HF_TOKEN", "définie")
     else:

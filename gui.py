@@ -90,7 +90,7 @@ SCRIPTS = [
             {"name": "source", "flag": None, "label": "Source (fichier vidéo ou URL YouTube)", "type": "source", "required": True},
             {"name": "source_lang", "flag": "-s", "label": "Langue source", "default": "en", **LANG},
             {"name": "target_lang", "flag": "-t", "label": "Langue cible", "default": "fr", **LANG},
-            {"name": "llm", "flag": "--llm", "label": "Moteur LLM", "type": "select", "choices": ["local", "claude"], "default": "local"},
+            {"name": "llm", "flag": "--llm", "label": "Moteur LLM", "type": "select", "choices": ["local", "claude", "claude-code"], "default": "local"},
             {"name": "ollama_model", "flag": "--ollama-model", "label": "Modèle local (Ollama)", "type": "ollama", "default": "gemma4:31b", "depends": {"llm": "local"}},
             {"name": "style", "flag": "--style", "label": "Style sous-titres", "type": "select", "choices": ["default", "box", "minimal", "netflix", "youtube"], "default": "default"},
             {"name": "context", "flag": "--context", "label": "Contexte (noms propres, sujet…)", "type": "textarea"},
@@ -118,7 +118,7 @@ SCRIPTS = [
             {"name": "input", "flag": None, "label": "Source (vidéo, URL YouTube ou Apollo)", "type": "source", "required": True},
             {"name": "source", "flag": "-s", "label": "Langue source", "default": "", **LANG},
             {"name": "target", "flag": "-t", "label": "Langue du résumé", "default": "fr", **LANG},
-            {"name": "llm", "flag": "--llm", "label": "Moteur LLM", "type": "select", "choices": ["local", "claude"], "default": "local"},
+            {"name": "llm", "flag": "--llm", "label": "Moteur LLM", "type": "select", "choices": ["local", "claude", "claude-code"], "default": "local"},
             {"name": "ollama_model", "flag": "--ollama-model", "label": "Modèle local (Ollama)", "type": "ollama", "default": "qwen3.6:27b", "depends": {"llm": "local"}},
             {"name": "pages", "flag": "--pages", "label": "Nombre de pages cible", "type": "int"},
             {"name": "context", "flag": "--context", "label": "Contexte", "type": "textarea"},
@@ -140,7 +140,7 @@ SCRIPTS = [
             {"name": "duration", "flag": "--duration", "label": "Durée (sec)", "type": "text", "default": "139-900", "placeholder": "min-max"},
             {"name": "source_lang", "flag": "-s", "label": "Langue source", **LANG},
             {"name": "target_lang", "flag": "-t", "label": "Langue cible (traduction)", **LANG},
-            {"name": "llm", "flag": "--llm", "label": "Moteur LLM", "type": "select", "choices": ["local", "claude"], "default": "local"},
+            {"name": "llm", "flag": "--llm", "label": "Moteur LLM", "type": "select", "choices": ["local", "claude", "claude-code"], "default": "local"},
             {"name": "ollama_model", "flag": "--ollama-model", "label": "Modèle local (Ollama)", "type": "ollama", "default": "qwen3.6:27b", "depends": {"llm": "local"}},
             {"name": "context", "flag": "--context", "label": "Contexte", "type": "textarea"},
             {"name": "post", "flag": "--post", "label": "Mode publication", "type": "toggle", "adv": True},
@@ -163,7 +163,7 @@ SCRIPTS = [
             {"name": "source_lang", "flag": "-s", "label": "Langue source", "default": "en", **LANG},
             {"name": "target_lang", "flag": "-t", "label": "Langue cible", "default": "fr", **LANG},
             {"name": "model", "flag": "--model", "label": "Moteur TTS", "type": "select", "choices": ["qwen3tts", "xtts"], "default": "qwen3tts"},
-            {"name": "llm", "flag": "--llm", "label": "Moteur LLM (traduction)", "type": "select", "choices": ["local", "claude"], "default": "local"},
+            {"name": "llm", "flag": "--llm", "label": "Moteur LLM (traduction)", "type": "select", "choices": ["local", "claude", "claude-code"], "default": "local"},
             {"name": "ollama_model", "flag": "--ollama-model", "label": "Modèle local (Ollama)", "type": "ollama", "default": "gemma4:31b", "depends": {"llm": "local"}},
             {"name": "ref_voice", "flag": "--ref-voice", "label": "Voix de référence (WAV)", "type": "file"},
             {"name": "speakers", "flag": "--speakers", "label": "Nombre de locuteurs", "type": "int"},
@@ -187,7 +187,7 @@ SCRIPTS = [
             {"name": "source_lang", "flag": "-s", "label": "Langue source", "default": "en", **LANG},
             {"name": "target_lang", "flag": "-t", "label": "Langue cible", "default": "fr", **LANG},
             {"name": "tts", "flag": "--tts", "label": "Moteur TTS", "type": "select", "choices": ["qwen3tts", "xtts", "elevenlabs"], "default": "qwen3tts"},
-            {"name": "llm", "flag": "--llm", "label": "Moteur LLM", "type": "select", "choices": ["local", "claude"], "default": "local"},
+            {"name": "llm", "flag": "--llm", "label": "Moteur LLM", "type": "select", "choices": ["local", "claude", "claude-code"], "default": "local"},
             {"name": "ollama_model", "flag": "--ollama-model", "label": "Modèle local (Ollama)", "type": "ollama", "default": "gemma4:31b", "depends": {"llm": "local"}},
             {"name": "voiceover", "flag": None, "off_flag": "--no-voiceover", "label": "Voix-off (ducking)", "type": "toggle", "default": True},
             {"name": "vo_style", "flag": "--vo-style", "label": "Style voix-off", "type": "select", "choices": ["", "arte", "jt", "jt-flat", "bbc"], "default": ""},
@@ -253,7 +253,7 @@ SCRIPTS = [
             {"name": "target_lang", "flag": "-t", "label": "Langue cible", "default": "fr", **LANG},
             {"name": "style", "flag": "--style", "label": "Style sous-titres", "type": "select", "choices": ["default", "box", "minimal", "netflix", "youtube"], "default": "default"},
             {"name": "context", "flag": "--context", "label": "Contexte", "type": "textarea"},
-            {"name": "llm", "flag": "--llm", "label": "Moteur LLM", "type": "select", "choices": ["local", "claude"], "default": "local"},
+            {"name": "llm", "flag": "--llm", "label": "Moteur LLM", "type": "select", "choices": ["local", "claude", "claude-code"], "default": "local"},
             {"name": "ollama_model", "flag": "--ollama-model", "label": "Modèle local (Ollama)", "type": "ollama", "default": "gemma4:31b", "depends": {"llm": "local"}},
             {"name": "no_dubbing", "flag": "--no-dubbing", "label": "Sans doublage", "type": "toggle"},
             {"name": "audit_cuts", "flag": "--audit-cuts", "label": "Auditer les coupes", "type": "toggle"},
@@ -278,7 +278,7 @@ SCRIPTS = [
             {"name": "docx", "flag": None, "label": "DOCX traduit", "type": "file", "required": True},
             {"name": "style", "flag": "--style", "label": "Style sous-titres", "type": "select", "choices": ["default", "box", "minimal", "netflix", "youtube"], "default": "default"},
             {"name": "srt_only", "flag": "--srt-only", "label": "SRT seul (pas d'incrustation)", "type": "toggle"},
-            {"name": "llm", "flag": "--llm", "label": "Moteur LLM (alignement)", "type": "select", "choices": ["local", "claude"], "default": "local"},
+            {"name": "llm", "flag": "--llm", "label": "Moteur LLM (alignement)", "type": "select", "choices": ["local", "claude", "claude-code"], "default": "local"},
             {"name": "ollama_model", "flag": "--ollama-model", "label": "Modèle local (Ollama)", "type": "ollama", "default": "qwen3.6:27b", "depends": {"llm": "local"}},
             {"name": "resume", "flag": "--resume", "label": "Reprendre (segments alignés JSON)", "type": "file", "adv": True},
             {"name": "whisperx_json", "flag": "--whisperx-json", "label": "JSON WhisperX pré-calculé", "type": "file", "adv": True},
@@ -859,7 +859,7 @@ def main():
     if not os.path.exists(PYTHON_BIN):
         hints.append(f"interpréteur interview absent ({PYTHON_BIN})")
     if not os.environ.get("ANTHROPIC_API_KEY"):
-        hints.append("ANTHROPIC_API_KEY absente (mets --llm local, ou configure la clé)")
+        hints.append("ANTHROPIC_API_KEY absente (mets --llm local ou claude-code, ou configure la clé)")
     if hints:
         print("-" * 60)
         for h in hints:

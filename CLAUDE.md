@@ -52,6 +52,7 @@ python clipper.py video.mp4 --resume video_clips.json --criteria "test"
 ## Environment Requirements
 
 - **`ANTHROPIC_API_KEY`** (optional — scripts default to a local LLM via Ollama; only needed with `--llm claude`). With `--analysis-llm auto` (the default), the **analysis pass** alone (glossary/proper-nouns/domain) uses Claude when this key is set — one cheap call that also improves the local translation; falls back to local otherwise.
+- **`--llm claude-code`** (every script that has `--llm`, plus `transcrire.py`) needs no `ANTHROPIC_API_KEY`: the shared `claude_code.py` module mimics `anthropic.Anthropic().messages.create` by calling `claude -p` (Claude Code, the Claude subscription; the key is removed from the subprocess environment; forced tool use becomes `--json-schema`). `--cc-model` picks the model (default `opus`). `TRADUCTION_LLM=claude-code`, or that word in `~/.config/traduction/llm`, makes it the default; without either the default stays `local`. `--analysis-llm auto` prefers Claude Code when the `claude` binary is there, then the API with a key, else local.
 - **`HF_TOKEN`** (required for dubbing scripts — Pyannote speaker diarization)
 - **`ffmpeg`** system binary
 - GPU with CUDA recommended (WhisperX, XTTS v2, Qwen3-TTS)

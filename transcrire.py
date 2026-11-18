@@ -36,6 +36,20 @@ import time
 import urllib.request
 from pathlib import Path
 
+import claude_code
+
+# Backend Claude (renseigné par main()) : "claude-code" (`claude -p`, abonnement)
+# ou "claude" (API Anthropic, ANTHROPIC_API_KEY).
+LLM = "claude"
+
+
+def _client(api_key):
+    """Client Claude selon --llm. Avec Claude Code, chaque appel garde son modèle."""
+    if LLM == "claude-code":
+        return claude_code.ClaudeCodeClient(model=None)
+    import anthropic
+    return anthropic.Anthropic(api_key=api_key)
+
 import hw
 hw.setup_rocm_env()  # AMD/ROCm (gfx1151) : pose HSA_OVERRIDE_* avant tout import torch
 
@@ -858,8 +872,7 @@ def fix_attributions_claude(transcript: str, interviewers: list[str],
     """
     Passe dédiée : Claude corrige les attributions sans réécrire le texte.
     """
-    import anthropic
-    client = anthropic.Anthropic(api_key=api_key)
+    client = _client(api_key)
 
     interviewers_str = ", ".join(interviewers)
     invites_str = ", ".join(invites)
@@ -953,8 +966,7 @@ def rewrite_with_claude(transcript: str, interviewers: list[str],
                         invites: list[str], api_key: str, model: str,
                         api_stats: "APIStats") -> str:
     """Envoie la transcription à Claude pour réécriture parlé → écrit."""
-    import anthropic
-    client = anthropic.Anthropic(api_key=api_key)
+    client = _client(api_key)
 
     interviewers_str = ", ".join(interviewers)
     invites_str = ", ".join(invites)
@@ -1728,7 +1740,7 @@ Exemples :
   python transcrire.py --playlist
 
 Variables d'environnement requises :
-  ANTHROPIC_API_KEY : Clé API Anthropic (pour Claude)
+  ANTHROPIC_API_KEY : Clé API Anthropic (seulement avec --llm claude)
   HF_TOKEN          : Token Hugging Face (pour Pyannote)
         """,
     )
@@ -1780,6 +1792,11 @@ Variables d'environnement requises :
     )
 
     # Modèles
+    parser.add_argument("--llm", choices=["claude-code", "claude"],
+                        default="claude-code" if claude_code.find_bin() else "claude",
+                        help="Par où passe Claude : claude-code (`claude -p`, abonnement Claude, "
+                             "sans clé API ; défaut quand Claude Code est installé) ou "
+                             "claude (API Anthropic, ANTHROPIC_API_KEY)")
     parser.add_argument("--model", default="claude-opus-4-5",
                         help="Modèle Claude à utiliser (défaut: claude-opus-4-5, "
                              "cf. A/B 2026-05-25 dans traduire.py)")
@@ -1799,7 +1816,14 @@ Variables d'environnement requises :
         parser.error("l'argument --invites/-g est requis (sauf en mode --playlist)")
 
     # Vérification des clés API
+    global LLM
+    LLM = args.llm
     api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if LLM == "claude-code":
+        if not claude_code.find_bin():
+            print("❌ binaire `claude` introuvable (--llm claude-code).")
+            sys.exit(1)
+        api_key = api_key or "claude-code"      # aucune clé requise
     hf_token = os.environ.get("HF_TOKEN")
 
     # ── Mode playlist ────────────────────────────────────────────────────

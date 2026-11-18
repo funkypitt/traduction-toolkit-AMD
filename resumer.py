@@ -47,6 +47,7 @@ import hw
 hw.setup_rocm_env()  # AMD/ROCm (gfx1151) : pose HSA_OVERRIDE_* avant tout import torch
 
 import apollohealth
+import claude_code
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # CONFIGURATION
@@ -147,12 +148,18 @@ def check_ffmpeg():
         sys.exit(1)
 
 
-def check_dependencies(local=False):
+def check_dependencies(local=False, cc=False):
     """Vérifie les dépendances Python essentielles.
 
-    En mode local (Ollama), ni le module anthropic ni la clé API ne sont requis.
+    En mode local (Ollama) ou claude-code (`claude -p`), ni le module anthropic
+    ni la clé API ne sont requis.
     """
     if local:
+        return
+    if cc:
+        if not claude_code.find_bin():
+            print("❌ binaire `claude` introuvable (--llm claude-code)")
+            sys.exit(1)
         return
     try:
         import anthropic
@@ -220,6 +227,8 @@ def _claude_create(client, **kwargs):
         try:
             return client.messages.create(**kwargs)
         except Exception as exc:
+            if isinstance(client, claude_code.ClaudeCodeClient):
+                raise                   # Claude Code fait ses propres retries
             retryable = False
             if is_local:
                 retryable = True        # Ollama : retry sur toute erreur réseau/timeout
@@ -1293,11 +1302,18 @@ def main():
                         help="Contexte additionnel (noms propres, sujet, etc.)")
     parser.add_argument("--claude-model", default=None,
                         help=f"Modèle Claude (défaut: {CLAUDE_MODEL})")
-    parser.add_argument("--llm", choices=["claude", "local"], default="local",
-                        help="Backend LLM : local (Ollama, défaut) ou claude (API Anthropic)")
-    parser.add_argument("--analysis-llm", choices=["auto", "claude", "local"], default="auto",
-                        help="LLM de la passe d'analyse/contexte : auto = Claude si "
-                             "ANTHROPIC_API_KEY dispo, sinon local")
+    parser.add_argument("--llm", choices=["claude", "claude-code", "local"],
+                        default=claude_code.default_llm("local"),
+                        help="Backend LLM : local (Ollama, défaut), claude (API Anthropic) ou "
+                             "claude-code (`claude -p`, abonnement Claude, sans clé API). "
+                             "Défaut modifiable par la variable TRADUCTION_LLM")
+    parser.add_argument("--cc-model", default=claude_code.DEFAULT_MODEL,
+                        help="Modèle pour --llm claude-code (alias ou ID, défaut: opus)")
+    parser.add_argument("--analysis-llm", choices=["auto", "claude", "claude-code", "local"],
+                        default="auto",
+                        help="LLM de la passe d'analyse/contexte : auto = Claude Code "
+                             "(abonnement) si `claude` est installé, sinon l'API si "
+                             "ANTHROPIC_API_KEY est là, sinon local")
     parser.add_argument("--ollama-model", default=OLLAMA_MODEL,
                         help=f"Modèle Ollama (défaut: {OLLAMA_MODEL})")
     parser.add_argument("--ollama-url", default=OLLAMA_URL,
@@ -1315,12 +1331,15 @@ def main():
     claude_model = args.ollama_model if is_local else (args.claude_model or CLAUDE_MODEL)
 
     # Vérifications
-    check_dependencies(local=is_local)
+    check_dependencies(local=is_local, cc=(args.llm == "claude-code"))
     check_ffmpeg()
 
     if is_local:
         client = _OllamaClient(args.ollama_url, args.ollama_model)
         print(f"   🧠 LLM local : Ollama {args.ollama_model}")
+    elif args.llm == "claude-code":
+        client = claude_code.ClaudeCodeClient(model=args.cc_model)
+        print(f"   🧠 LLM : Claude Code ({args.cc_model}, abonnement)")
     else:
         import anthropic
         client = anthropic.Anthropic()
@@ -1329,7 +1348,13 @@ def main():
     # domaine, glossaire) → meilleur résumé. Un seul appel, peu coûteux.
     analysis_client = client
     analysis_model = claude_model
-    if args.analysis_llm != "local":
+    _cc_analysis = claude_code.analysis_client(args.llm, args.analysis_llm, client, args.cc_model)
+    if _cc_analysis is not None:
+        # « auto » : l'abonnement (Claude Code) passe avant l'API payante.
+        analysis_client = _cc_analysis
+        if _cc_analysis is not client:
+            print("   🧠 Analyse du contexte via Claude Code (abonnement)")
+    elif args.analysis_llm != "local":
         _want_claude = args.analysis_llm == "claude" or (
             args.analysis_llm == "auto" and os.environ.get("ANTHROPIC_API_KEY"))
         if _want_claude:
