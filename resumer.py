@@ -42,6 +42,7 @@ from dataclasses import dataclass, field, asdict
 from datetime import date
 from pathlib import Path
 from typing import Optional
+from ytdlp_auto import ytdlp
 
 import hw
 hw.setup_rocm_env()  # AMD/ROCm (gfx1151) : pose HSA_OVERRIDE_* avant tout import torch
@@ -263,7 +264,7 @@ def get_youtube_metadata(url: str) -> ResumeMetadata:
     meta = ResumeMetadata(url=url)
     try:
         r = subprocess.run(
-            ["yt-dlp", "--print", "title", "--print", "channel",
+            [ytdlp(), "--print", "title", "--print", "channel",
              "--print", "duration", "--no-warnings",
              "--cookies-from-browser", "firefox", url],
             capture_output=True, text=True, timeout=30)
@@ -286,17 +287,13 @@ def get_youtube_metadata(url: str) -> ResumeMetadata:
 
 def download_youtube(url: str, output_dir: str = ".") -> str:
     """Télécharge une vidéo YouTube via yt-dlp et retourne le chemin du fichier MP4."""
-    if not shutil.which("yt-dlp"):
-        print("❌ yt-dlp n'est pas installé.")
-        print("   → pip install yt-dlp --break-system-packages")
-        sys.exit(1)
 
     print(f"\n📥 Téléchargement YouTube...")
     print(f"   URL : {url}")
 
     try:
         r = subprocess.run(
-            ["yt-dlp", "--print", "title", "--no-warnings",
+            [ytdlp(), "--print", "title", "--no-warnings",
              "--cookies-from-browser", "firefox", url],
             capture_output=True, text=True, timeout=30)
         title = r.stdout.strip() if r.returncode == 0 else ""
@@ -317,7 +314,7 @@ def download_youtube(url: str, output_dir: str = ".") -> str:
         return output_mp4
 
     cmd = [
-        "yt-dlp",
+        ytdlp(),
         "-f", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
         "--merge-output-format", "mp4",
         "-o", output_template,

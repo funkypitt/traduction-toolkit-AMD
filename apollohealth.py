@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Optional
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError
+from ytdlp_auto import ytdlp
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -277,8 +278,6 @@ def download_apollo_video(page: ApolloHealthPage, output_dir: str = ".") -> str:
             "Pas de vidéo Vimeo sur cette page Apollo Health.\n"
             "   → Vérifiez que la page contient bien une vidéo.")
 
-    if not shutil.which("yt-dlp"):
-        raise RuntimeError("yt-dlp n'est pas installé (nécessaire pour le téléchargement Vimeo).")
 
     # Nettoyer le titre pour en faire un nom de fichier
     safe_title = re.sub(r'[^\w\s\-]', '', page.title)
@@ -308,7 +307,7 @@ def download_apollo_video(page: ApolloHealthPage, output_dir: str = ".") -> str:
         vimeo_dl_url += f"?h={page.vimeo_hash}"
 
     cmd = [
-        "yt-dlp",
+        ytdlp(),
         "--referer", referer,
         "-f", "bestvideo+bestaudio/best",
         "--merge-output-format", "mp4",
